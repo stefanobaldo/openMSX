@@ -87,6 +87,7 @@
 #include "TurboRFDC.hh"
 #include "V9990.hh"
 #include "MSXPiDevice.hh"
+#include "MSXPicoBridge.hh"
 #include "VDP.hh"
 #include "VDPIODelay.hh"
 #include "VictorFDC.hh"
@@ -325,6 +326,8 @@ std::unique_ptr<MSXDevice> DeviceFactory::create(DeviceConfig& conf)
 		// Ignore for now. We might want to create a real device for it later.
 	} else if (type == "MSXPiDevice") {
 		result = std::make_unique<MSXPiDevice>(conf);
+	} else if (type == "MSXPicoBridge") {
+		result = std::make_unique<MSXPicoBridge>(conf);
 	} else {
 		throw MSXException("Unknown device \"", type,
 		                   "\" specified in configuration");

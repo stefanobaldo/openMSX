@@ -1,0 +1,24 @@
+<?xml version="1.0" ?>
+<!DOCTYPE msxconfig SYSTEM 'msxconfig2.dtd'>
+<msxconfig>
+  <info>
+    <name>MSX-Pico</name>
+    <manufacturer>emsxpico</manufacturer>
+    <code/>
+    <release_year>2026</release_year>
+    <description>MSX-Pico+ cartridge firmware running as a host library (emsxpico). Put libmsxpico.dylib and flash.img next to this file, or edit the paths below.</description>
+    <type>Flash cartridge</type>
+  </info>
+  <devices>
+    <primary slot="any">
+      <secondary slot="any">
+        <MSXPicoBridge id="MSX-Pico">
+          <mem base="0x0000" size="0x10000"/>
+          <io base="0x00" num="256" type="IO"/>
+          <library>libmsxpico.dylib</library>
+          <flash>flash.img</flash>
+        </MSXPicoBridge>
+      </secondary>
+    </primary>
+  </devices>
+</msxconfig>
