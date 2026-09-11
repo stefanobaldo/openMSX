@@ -14,7 +14,16 @@
 extern "C" {
 #endif
 
-#define MSXPICO_ABI_VERSION 1u
+#define MSXPICO_ABI_VERSION 2u
+
+/* The levels msxpico_log_fn is called with. Version 1 left them unnamed and
+ * every host hardcoded the fake SDK's values; they are these. */
+enum {
+    MSXPICO_LOG_DEBUG = 0,
+    MSXPICO_LOG_INFO = 1,
+    MSXPICO_LOG_WARN = 2,
+    MSXPICO_LOG_ERROR = 3
+};
 
 typedef void (*msxpico_log_fn)(int level, const char *msg, void *user);
 
@@ -24,6 +33,21 @@ typedef struct msxpico_config {
     const char *sd_image_path;     /* NULL: no card (phase 2 adds the driver) */
     msxpico_log_fn log;            /* NULL: stderr */
     void *log_user;
+    /* The watchdog scratch registers this instance starts with.
+     *
+     * On the chip these are hardware registers that survive a warm reset,
+     * which is what the firmware uses them for: it writes the reboot reason
+     * and the firmware image to start into them and then resets, and the
+     * bootloader reads them back on the way up. They are cleared only by
+     * losing power.
+     *
+     * A host instance is a library image, and a reset is a new image, so that
+     * lifetime has to come from the host: pass the `scratch` of the REBOOT
+     * event that ended the previous instance, and all zeroes for a cold start.
+     * A host that passes zeroes every time makes the firmware forget across
+     * every reboot -- which is how the menu's FM toggle used to switch image
+     * for exactly one reboot and be undone by the next. */
+    uint32_t scratch[4];
 } msxpico_config;
 
 typedef enum msxpico_event_kind {

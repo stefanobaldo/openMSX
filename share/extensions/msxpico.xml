@@ -6,7 +6,7 @@
     <manufacturer>emsxpico</manufacturer>
     <code/>
     <release_year>2026</release_year>
-    <description>MSX-Pico+ cartridge firmware running as a host library (emsxpico). Put libmsxpico.dylib and flash.img next to this file, or edit the paths below.</description>
+    <description>MSX-Pico+ cartridge firmware running as a host library (emsxpico). Put libmsxpico.dylib and flash.img next to this file, or edit the paths below. Add &lt;library2&gt; (the FM firmware) to let the menu's &lt;INS&gt; switch between them, and &lt;fm&gt;true&lt;/fm&gt; to start on it.</description>
     <type>Flash cartridge</type>
   </info>
   <devices>
@@ -16,6 +16,7 @@
           <mem base="0x0000" size="0x10000"/>
           <io base="0x00" num="256" type="IO"/>
           <library>libmsxpico.dylib</library>
+          <!-- <library2>libmsxpico2.dylib</library2> -->
           <flash>flash.img</flash>
         </MSXPicoBridge>
       </secondary>

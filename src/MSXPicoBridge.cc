@@ -14,6 +14,7 @@
 
 #include <dlfcn.h>
 
+#include <algorithm>
 #include <array>
 #include <cstdio>
 #include <deque>
@@ -24,11 +25,10 @@
 
 namespace openmsx {
 
-// Log levels of the library's callback. msxpico.h does not name them; these
-// are the values the emsxpico fake SDK uses (emsx/internal.h). Anything else
-// is treated as a warning.
-static constexpr int LOG_DEBUG = 0;
-static constexpr int LOG_INFO  = 1;
+// Log levels of the library's callback, named by the ABI since version 2.
+// Anything above INFO is treated as a warning.
+static constexpr int LOG_DEBUG = MSXPICO_LOG_DEBUG;
+static constexpr int LOG_INFO  = MSXPICO_LOG_INFO;
 
 static const char* errorName(int rc)
 {
@@ -47,7 +47,8 @@ static const char* errorName(int rc)
 class MSXPicoInstance
 {
 public:
-	MSXPicoInstance(const std::string& libraryPath, const std::string& flashPath);
+	MSXPicoInstance(const std::string& libraryPath, const std::string& flashPath,
+	                const std::array<uint32_t, 4>& scratch);
 	~MSXPicoInstance();
 	MSXPicoInstance(const MSXPicoInstance&) = delete;
 	MSXPicoInstance& operator=(const MSXPicoInstance&) = delete;
@@ -93,7 +94,8 @@ private:
 	std::string lastAny;
 };
 
-MSXPicoInstance::MSXPicoInstance(const std::string& libraryPath, const std::string& flashPath)
+MSXPicoInstance::MSXPicoInstance(const std::string& libraryPath, const std::string& flashPath,
+                                 const std::array<uint32_t, 4>& scratch)
 {
 	try {
 		copyLibrary(libraryPath);
@@ -128,6 +130,9 @@ MSXPicoInstance::MSXPicoInstance(const std::string& libraryPath, const std::stri
 		cfg.sd_image_path = nullptr;
 		cfg.log = &MSXPicoInstance::logCallback;
 		cfg.log_user = this;
+		// What the chip's watchdog registers would still hold: the previous
+		// life's values after a reset, zeroes after losing power.
+		std::copy(scratch.begin(), scratch.end(), cfg.scratch);
 		initCalled = true;
 		if (int rc = api.init(&cfg); rc != MSXPICO_OK) {
 			throw MSXException("msxpico_init failed: ", errorName(rc), " (", lastError(), ')');
@@ -221,15 +226,53 @@ MSXPicoBridge::MSXPicoBridge(const DeviceConfig& config)
 		throw MSXException("MSXPicoBridge: flash image \"", flash->getData(),
 		                   "\" not found: ", e.getMessage());
 	}
+	// Optional: the firmware the cartridge's bootloader would jump to when its
+	// scratch register asks for FM. Without it the bridge has one firmware and
+	// behaves as it always did.
+	if (const auto* lib2 = xml.findChild("library2")) {
+		try {
+			library2Path = context.resolve(lib2->getData());
+		} catch (FileException& e) {
+			throw MSXException("MSXPicoBridge: library2 \"", lib2->getData(),
+			                   "\" not found: ", e.getMessage());
+		}
+	}
+	fmAtPowerUp = xml.getChildDataAsBool("fm", false);
+	if (fmAtPowerUp && library2Path.empty()) {
+		throw MSXException("MSXPicoBridge: <fm> is set but <library2> is missing");
+	}
+	coldScratch();
 	load();
+}
+
+void MSXPicoBridge::coldScratch()
+{
+	// A chip that has just been given power: every register clear, except the
+	// one the bootloader fills in from the saved setting before it jumps.
+	scratch = {};
+	scratch[3] = fmAtPowerUp ? 1u : 0u;
 }
 
 MSXPicoBridge::~MSXPicoBridge() = default;
 
 void MSXPicoBridge::load()
 {
+	// Scratch register 3 is what the cartridge's bootloader reads to choose
+	// the firmware image, so it is what chooses here.
+	bool fm = scratch[3] != 0;
+	// Firmware 2 only if it is configured. Asking for a firmware that is not
+	// there is worth saying once -- the menu will come back with FM still off,
+	// which looks like the toggle having done nothing -- but it is not worth
+	// killing the cartridge over.
+	if (fm && library2Path.empty() && !warnedNoLibrary2) {
+		warnedNoLibrary2 = true;
+		getCliComm().printWarning(
+			"MSX-Pico: the firmware asked for the FM build, but no <library2> "
+			"is configured; reloading the one there is, with FM off");
+	}
+	const std::string& path = (fm && !library2Path.empty()) ? library2Path : libraryPath;
 	try {
-		instance = std::make_unique<MSXPicoInstance>(libraryPath, flashPath);
+		instance = std::make_unique<MSXPicoInstance>(path, flashPath, scratch);
 	} catch (MSXException& e) {
 		throw MSXException("MSXPicoBridge: ", e.getMessage());
 	}
@@ -253,7 +296,12 @@ void MSXPicoBridge::pollEvents()
 	if (!instance->pollEvent(ev)) return;
 	if (ev.kind == MSXPICO_EVENT_REBOOT) {
 		// The firmware rebooted (watchdog_reboot): a new life, right now,
-		// inside the bus cycle that caused it, as the cartridge does.
+		// inside the bus cycle that caused it, as the cartridge does. The
+		// registers it leaves behind survive the reset, so they cross over to
+		// the next life: register 3 is what the bootloader reads to pick the
+		// firmware image, written by <INS> in the menu and by saving the FM
+		// setting from the configuration screen.
+		std::copy(std::begin(ev.scratch), std::end(ev.scratch), scratch.begin());
 		instance.reset();
 		live = false;
 		try {
@@ -281,8 +329,11 @@ void MSXPicoBridge::powerUp(EmuTime time)
 {
 	MSXDevice::powerUp(time);
 	if (live) return;
-	// A power cycle is what unsticks a stuck cartridge: start a new life.
+	// A power cycle is what unsticks a stuck cartridge, and it is also what
+	// clears the watchdog registers: the next life starts from the saved
+	// setting, not from whatever <INS> last asked for.
 	instance.reset();
+	coldScratch();
 	try {
 		load();
 	} catch (MSXException& e) {
