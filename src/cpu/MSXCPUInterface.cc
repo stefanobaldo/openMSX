@@ -423,8 +423,12 @@ void MSXCPUInterface::register_IO(int port, bool isIn,
 			devicePtr = multi;
 		}
 		if (isIn) {
+			// The machine can silence every overlap warning; a device that
+			// knows it overlaps can silence its own with the same attribute
+			// on its element (an extension cannot edit the machine's).
 			const auto& devices = motherBoard.getMachineConfig()->getDevicesElem();
-			if (devices.getAttributeValueAsBool("overlap_warning", true)) {
+			if (devices.getAttributeValueAsBool("overlap_warning", true) &&
+			    device->getDeviceConfig().getAttributeValueAsBool("overlap_warning", true)) {
 				cliComm.printWarning(
 					"Conflicting input port 0x",
 					hex_string<2>(port),
