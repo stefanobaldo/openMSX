@@ -44,6 +44,11 @@ class MSXPicoInstance;
   * the optional child <fm> starts on <library2>. It is this host's stand-in for
   * the saved setting the bootloader reads, and a power cycle returns to it
   * rather than to whatever <INS> last asked for.
+  *
+  * <sd> is optional and names the SD card's image. It is resolved like
+  * <flash>, handed to the library as sd_image_path, and reopened by every
+  * life, so what one life writes the next one reads — a card that stays in the
+  * slot across a reset.
   */
 class MSXPicoBridge final : public MSXDevice
 {
@@ -67,6 +72,7 @@ private:
 	std::string libraryPath;   // firmware 1, without the FM synthesiser
 	std::string library2Path;  // firmware 2, with it; empty when not configured
 	std::string flashPath;
+	std::string sdPath;      // the card's image; empty when no <sd>
 	bool fmAtPowerUp = false;  // the <fm> element: which library a power-up starts
 	bool warnedNoLibrary2 = false;
 	// The cartridge's watchdog scratch registers, which outlive a library

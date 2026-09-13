@@ -48,6 +48,7 @@ class MSXPicoInstance
 {
 public:
 	MSXPicoInstance(const std::string& libraryPath, const std::string& flashPath,
+	                const std::string& sdPath,
 	                const std::array<uint32_t, 4>& scratch);
 	~MSXPicoInstance();
 	MSXPicoInstance(const MSXPicoInstance&) = delete;
@@ -95,6 +96,7 @@ private:
 };
 
 MSXPicoInstance::MSXPicoInstance(const std::string& libraryPath, const std::string& flashPath,
+                                 const std::string& sdPath,
                                  const std::array<uint32_t, 4>& scratch)
 {
 	try {
@@ -127,7 +129,7 @@ MSXPicoInstance::MSXPicoInstance(const std::string& libraryPath, const std::stri
 		msxpico_config cfg{};
 		cfg.struct_size = sizeof(msxpico_config);
 		cfg.flash_image_path = flashPath.c_str();
-		cfg.sd_image_path = nullptr;
+		cfg.sd_image_path = sdPath.empty() ? nullptr : sdPath.c_str();
 		cfg.log = &MSXPicoInstance::logCallback;
 		cfg.log_user = this;
 		// What the chip's watchdog registers would still hold: the previous
@@ -237,6 +239,16 @@ MSXPicoBridge::MSXPicoBridge(const DeviceConfig& config)
 			                   "\" not found: ", e.getMessage());
 		}
 	}
+	// Optional: the SD card's image. Resolved like <flash>; the library opens
+	// it read/write and every life reopens the same file.
+	if (const auto* sd = xml.findChild("sd")) {
+		try {
+			sdPath = context.resolve(sd->getData());
+		} catch (FileException& e) {
+			throw MSXException("MSXPicoBridge: sd image \"", sd->getData(),
+			                   "\" not found: ", e.getMessage());
+		}
+	}
 	fmAtPowerUp = xml.getChildDataAsBool("fm", false);
 	if (fmAtPowerUp && library2Path.empty()) {
 		throw MSXException("MSXPicoBridge: <fm> is set but <library2> is missing");
@@ -272,7 +284,7 @@ void MSXPicoBridge::load()
 	}
 	const std::string& path = (fm && !library2Path.empty()) ? library2Path : libraryPath;
 	try {
-		instance = std::make_unique<MSXPicoInstance>(path, flashPath, scratch);
+		instance = std::make_unique<MSXPicoInstance>(path, flashPath, sdPath, scratch);
 	} catch (MSXException& e) {
 		throw MSXException("MSXPicoBridge: ", e.getMessage());
 	}
