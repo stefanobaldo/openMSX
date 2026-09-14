@@ -6,7 +6,7 @@
     <manufacturer>emsxpico</manufacturer>
     <code/>
     <release_year>2026</release_year>
-    <description>MSX-Pico+ cartridge firmware running as a host library (emsxpico). Put libmsxpico.dylib and flash.img next to this file, or edit the paths below. Add &lt;library2&gt; (the FM firmware) to let the menu's &lt;INS&gt; switch between them, and &lt;fm&gt;true&lt;/fm&gt; to start on it. &lt;sd&gt; names the SD card's image, a FAT16 disk image the firmware reads and writes.</description>
+    <description>MSX-Pico+ cartridge firmware running as a host library (emsxpico). Put libmsxpico.dylib and flash.img next to this file, or edit the paths below. Add &lt;library2&gt; (the FM firmware) to let the menu's &lt;INS&gt; switch between them, and &lt;fm&gt;true&lt;/fm&gt; to start on it. &lt;sd&gt; names the SD card's image, a FAT16 disk image the firmware reads and writes. The cartridge's sound is the MSX-Pico device in the mixer (MSX-Pico_volume).</description>
     <type>Flash cartridge</type>
   </info>
   <devices>
@@ -19,6 +19,9 @@
           <!-- <library2>libmsxpico2.dylib</library2> -->
           <!-- <sd>sd.img</sd> -->
           <flash>flash.img</flash>
+          <sound>
+            <volume>13000</volume>
+          </sound>
         </MSXPicoBridge>
       </secondary>
     </primary>

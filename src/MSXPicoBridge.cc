@@ -1,5 +1,7 @@
 #include "MSXPicoBridge.hh"
 
+#include "MSXPicoSound.hh"
+
 #include "DeviceConfig.hh"
 #include "FileContext.hh"
 #include "FileException.hh"
@@ -61,6 +63,8 @@ public:
 	[[nodiscard]] bool pollEvent(msxpico_event& out) const {
 		return api.pollEvent(&out) == 1;
 	}
+	[[nodiscard]] uint32_t sampleRate() const { return api.sampleRate(); }
+	size_t pullSamples(int16_t* out, size_t frames) const { return api.pullSamples(out, frames); }
 
 	/** Removes and returns the queued log lines, oldest first. Called on the
 	  * emulator thread only. */
@@ -86,6 +90,7 @@ private:
 		void (*writeIO)(uint16_t, uint8_t) = nullptr;
 		int (*pollEvent)(msxpico_event*) = nullptr;
 		size_t (*pullSamples)(int16_t*, size_t) = nullptr;
+		uint32_t (*sampleRate)() = nullptr;
 	} api;
 	bool initCalled = false;
 
@@ -120,6 +125,7 @@ MSXPicoInstance::MSXPicoInstance(const std::string& libraryPath, const std::stri
 		resolve(api.writeIO,     "msxpico_write_io");
 		resolve(api.pollEvent,   "msxpico_poll_event");
 		resolve(api.pullSamples, "msxpico_pull_samples");
+		resolve(api.sampleRate,  "msxpico_sample_rate");
 
 		if (auto v = api.abiVersion(); v != MSXPICO_ABI_VERSION) {
 			throw MSXException(libraryPath, " implements ABI version ", v,
@@ -255,6 +261,8 @@ MSXPicoBridge::MSXPicoBridge(const DeviceConfig& config)
 	}
 	coldScratch();
 	load();
+	// After load(): the device's input rate is the one this life programmed.
+	sound = std::make_unique<MSXPicoSound>(*this, config);
 }
 
 void MSXPicoBridge::coldScratch()
@@ -266,6 +274,16 @@ void MSXPicoBridge::coldScratch()
 }
 
 MSXPicoBridge::~MSXPicoBridge() = default;
+
+uint32_t MSXPicoBridge::sampleRate() const
+{
+	return (live && instance) ? instance->sampleRate() : 0;
+}
+
+size_t MSXPicoBridge::pullSamples(int16_t* out, size_t frames)
+{
+	return (live && instance) ? instance->pullSamples(out, frames) : 0;
+}
 
 void MSXPicoBridge::load()
 {

@@ -11,6 +11,7 @@
 namespace openmsx {
 
 class MSXPicoInstance;
+class MSXPicoSound;
 
 /** A cartridge whose firmware runs as a host library implementing the
   * libmsxpico C ABI (msxpico.h). The library is configured by children of the
@@ -49,6 +50,11 @@ class MSXPicoInstance;
   * <flash>, handed to the library as sd_image_path, and reopened by every
   * life, so what one life writes the next one reads — a card that stays in the
   * slot across a reset.
+ *
+  * <sound> is required, as for every openMSX sound device: the bridge
+  * registers one stereo sound device, MSX-Pico, whose samples are the
+  * firmware's I2S output pulled from the library when the mixer asks (see
+  * MSXPicoSound).
   */
 class MSXPicoBridge final : public MSXDevice
 {
@@ -63,6 +69,13 @@ public:
 	void writeMem(uint16_t address, byte value, EmuTime time) override;
 	[[nodiscard]] byte readIO(uint16_t port, EmuTime time) override;
 	void writeIO(uint16_t port, byte value, EmuTime time) override;
+
+	/** For MSXPicoSound: the firmware's current I2S sample rate in Hz, or 0
+	  * when no life is live. */
+	[[nodiscard]] uint32_t sampleRate() const;
+	/** For MSXPicoSound: `frames` stereo frames of the firmware's output into
+	  * `out`, interleaved left/right; returns 0 when no life is live. */
+	size_t pullSamples(int16_t* out, size_t frames);
 
 private:
 	void load();       // starts a life from `scratch`; throws MSXException
@@ -80,6 +93,9 @@ private:
 	std::array<uint32_t, 4> scratch = {};
 	std::unique_ptr<MSXPicoInstance> instance;
 	bool live = false; // false: the bus answers 0xFF without calling the library
+	// After `instance` and `live`, so it is destroyed first: it unregisters
+	// from the mixer while the instance it pulls from is still there.
+	std::unique_ptr<MSXPicoSound> sound;
 };
 
 } // namespace openmsx
