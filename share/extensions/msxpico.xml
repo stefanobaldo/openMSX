@@ -20,7 +20,7 @@
           <!-- <sd>sd.img</sd> -->
           <flash>flash.img</flash>
           <sound>
-            <volume>13000</volume>
+            <volume>83000</volume>
           </sound>
         </MSXPicoBridge>
       </secondary>
