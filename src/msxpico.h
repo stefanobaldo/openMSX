@@ -14,7 +14,7 @@
 extern "C" {
 #endif
 
-#define MSXPICO_ABI_VERSION 2u
+#define MSXPICO_ABI_VERSION 3u
 
 /* The levels msxpico_log_fn is called with. Version 1 left them unnamed and
  * every host hardcoded the fake SDK's values; they are these. */
@@ -79,7 +79,19 @@ int      msxpico_read_io(uint16_t port);            /* full 16-bit I/O address *
 void     msxpico_write_io(uint16_t port, uint8_t data);
 
 int      msxpico_poll_event(msxpico_event *out);    /* 1 if an event was pending */
-size_t   msxpico_pull_samples(int16_t *stereo, size_t frames); /* 0 until phase 3 */
+/* Sound, as the cartridge's I2S output carries it: interleaved left/right,
+ * int16 (the top 16 of the DAC's 24 bits), exactly `frames` frames written
+ * to `stereo`. Every frame is one step of the firmware's sound interrupt, so
+ * the caller's cadence is the audio's clock: call it from the emulated
+ * machine's mixer, for the samples emulated time has produced. May be called
+ * from a thread other than the bus's. Returns `frames`; 0 only for a NULL
+ * buffer. */
+size_t   msxpico_pull_samples(int16_t *stereo, size_t frames);
+/* The firmware's current output sample rate in Hz, derived from the I2S
+ * divider it programmed (version 3). Valid once msxpico_init has returned;
+ * changes while the firmware plays a WAV or MP3 at the file's rate and
+ * returns to the fixed rate afterwards. May be called from any thread. */
+uint32_t msxpico_sample_rate(void);
 
 #ifdef __cplusplus
 }
