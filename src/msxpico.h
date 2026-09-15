@@ -3,7 +3,8 @@
  * One firmware instance per loaded library image. Bus calls are synchronous:
  * each is one complete Z80 cycle. After a REBOOT or HALTED event the instance
  * is dead; the host unloads the library, loads a fresh copy and calls
- * msxpico_init again. See docs/superpowers/specs/2026-09-09-phase-1-1-firmware-on-host-design.md §5. */
+ * msxpico_init again. See docs/superpowers/specs/2026-09-09-phase-1-1-firmware-on-host-design.md §5,
+ * and docs/superpowers/specs/2026-09-14-phase-4-connectivity-design.md §4 for version 4. */
 #ifndef MSXPICO_H
 #define MSXPICO_H
 
@@ -14,7 +15,7 @@
 extern "C" {
 #endif
 
-#define MSXPICO_ABI_VERSION 3u
+#define MSXPICO_ABI_VERSION 4u
 
 /* The levels msxpico_log_fn is called with. Version 1 left them unnamed and
  * every host hardcoded the fake SDK's values; they are these. */
@@ -48,6 +49,12 @@ typedef struct msxpico_config {
      * every reboot -- which is how the menu's FM toggle used to switch image
      * for exactly one reboot and be undone by the next. */
     uint32_t scratch[4];
+    /* The ESP8266 model's Unix socket (version 4). NULL: no module -- the
+     * firmware finds WIFI_RX low and hides every Wi-Fi feature, as on a board
+     * without the ESP. A path nobody listens on is the same, logged once.
+     * Connected in msxpico_init, before the firmware starts, because the
+     * firmware reads the pin once at boot. */
+    const char *esp8266_socket_path;
 } msxpico_config;
 
 typedef enum msxpico_event_kind {

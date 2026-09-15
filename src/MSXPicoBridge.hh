@@ -86,6 +86,7 @@ private:
 	std::string library2Path;  // firmware 2, with it; empty when not configured
 	std::string flashPath;
 	std::string sdPath;      // the card's image; empty when no <sd>
+	std::string esp8266Path; // the ESP8266 model's socket; empty when no <esp8266>
 	bool fmAtPowerUp = false;  // the <fm> element: which library a power-up starts
 	bool warnedNoLibrary2 = false;
 	// The cartridge's watchdog scratch registers, which outlive a library

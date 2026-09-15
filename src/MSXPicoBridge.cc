@@ -50,7 +50,7 @@ class MSXPicoInstance
 {
 public:
 	MSXPicoInstance(const std::string& libraryPath, const std::string& flashPath,
-	                const std::string& sdPath,
+	                const std::string& sdPath, const std::string& esp8266Path,
 	                const std::array<uint32_t, 4>& scratch);
 	~MSXPicoInstance();
 	MSXPicoInstance(const MSXPicoInstance&) = delete;
@@ -101,7 +101,7 @@ private:
 };
 
 MSXPicoInstance::MSXPicoInstance(const std::string& libraryPath, const std::string& flashPath,
-                                 const std::string& sdPath,
+                                 const std::string& sdPath, const std::string& esp8266Path,
                                  const std::array<uint32_t, 4>& scratch)
 {
 	try {
@@ -136,6 +136,7 @@ MSXPicoInstance::MSXPicoInstance(const std::string& libraryPath, const std::stri
 		cfg.struct_size = sizeof(msxpico_config);
 		cfg.flash_image_path = flashPath.c_str();
 		cfg.sd_image_path = sdPath.empty() ? nullptr : sdPath.c_str();
+		cfg.esp8266_socket_path = esp8266Path.empty() ? nullptr : esp8266Path.c_str();
 		cfg.log = &MSXPicoInstance::logCallback;
 		cfg.log_user = this;
 		// What the chip's watchdog registers would still hold: the previous
@@ -255,6 +256,17 @@ MSXPicoBridge::MSXPicoBridge(const DeviceConfig& config)
 			                   "\" not found: ", e.getMessage());
 		}
 	}
+	// Optional: the ESP8266 model's Unix socket. Resolved like <sd>; an
+	// absolute path passes through untouched. The library connects at init
+	// and boots without the module when nothing listens.
+	if (const auto* esp = xml.findChild("esp8266")) {
+		try {
+			esp8266Path = context.resolve(esp->getData());
+		} catch (FileException& e) {
+			throw MSXException("MSXPicoBridge: esp8266 socket \"", esp->getData(),
+			                   "\" not found: ", e.getMessage());
+		}
+	}
 	fmAtPowerUp = xml.getChildDataAsBool("fm", false);
 	if (fmAtPowerUp && library2Path.empty()) {
 		throw MSXException("MSXPicoBridge: <fm> is set but <library2> is missing");
@@ -302,7 +314,7 @@ void MSXPicoBridge::load()
 	}
 	const std::string& path = (fm && !library2Path.empty()) ? library2Path : libraryPath;
 	try {
-		instance = std::make_unique<MSXPicoInstance>(path, flashPath, sdPath, scratch);
+		instance = std::make_unique<MSXPicoInstance>(path, flashPath, sdPath, esp8266Path, scratch);
 	} catch (MSXException& e) {
 		throw MSXException("MSXPicoBridge: ", e.getMessage());
 	}
