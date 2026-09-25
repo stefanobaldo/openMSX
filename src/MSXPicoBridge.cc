@@ -72,6 +72,9 @@ public:
 	/** The most recent WARN-or-worse line; failing that, the most recent line
 	  * of any level. */
 	[[nodiscard]] std::string lastError() const;
+	/** Calls msxpico_shutdown, once, while the instance still exists, so what
+	  * the library logs on its way out can still be taken. */
+	void shutdown();
 
 private:
 	static void logCallback(int level, const char* msg, void* user);
@@ -175,12 +178,19 @@ void MSXPicoInstance::copyLibrary(const std::string& libraryPath)
 	}
 }
 
-void MSXPicoInstance::teardown()
+void MSXPicoInstance::shutdown()
 {
+	// Idempotent: the bridge calls it to read what the library logs while it
+	// shuts down, and the destructor calls it again through teardown().
 	if (initCalled && api.shutdown) {
 		api.shutdown();
 		initCalled = false;
 	}
+}
+
+void MSXPicoInstance::teardown()
+{
+	shutdown();
 	if (handle) {
 		dlclose(handle);
 		handle = nullptr;
@@ -285,7 +295,13 @@ void MSXPicoBridge::coldScratch()
 	scratch[3] = fmAtPowerUp ? 1u : 0u;
 }
 
-MSXPicoBridge::~MSXPicoBridge() = default;
+MSXPicoBridge::~MSXPicoBridge()
+{
+	// The sound device first, as the member order intends: it unregisters
+	// from the mixer while the instance it pulls from is still there.
+	sound.reset();
+	retire();
+}
 
 uint32_t MSXPicoBridge::sampleRate() const
 {
@@ -322,7 +338,7 @@ void MSXPicoBridge::load()
 	pollEvents();
 }
 
-void MSXPicoBridge::pollEvents()
+void MSXPicoBridge::printLogs()
 {
 	if (!instance) return;
 	for (const auto& [level, text] : instance->takeLogs()) {
@@ -333,6 +349,22 @@ void MSXPicoBridge::pollEvents()
 			getCliComm().printWarning(strCat("MSX-Pico: ", text));
 		}
 	}
+}
+
+void MSXPicoBridge::retire()
+{
+	// Shut the library down while the instance still exists, so what it says
+	// on the way out -- a core that would not stop, above all -- is printed.
+	if (!instance) return;
+	instance->shutdown();
+	printLogs();
+	instance.reset();
+}
+
+void MSXPicoBridge::pollEvents()
+{
+	if (!instance) return;
+	printLogs();
 	if (!live) return;
 	msxpico_event ev{};
 	if (!instance->pollEvent(ev)) return;
@@ -344,7 +376,7 @@ void MSXPicoBridge::pollEvents()
 		// firmware image, written by <INS> in the menu and by saving the FM
 		// setting from the configuration screen.
 		std::copy(std::begin(ev.scratch), std::end(ev.scratch), scratch.begin());
-		instance.reset();
+		retire();
 		live = false;
 		try {
 			load();
@@ -374,7 +406,7 @@ void MSXPicoBridge::powerUp(EmuTime time)
 	// A power cycle is what unsticks a stuck cartridge, and it is also what
 	// clears the watchdog registers: the next life starts from the saved
 	// setting, not from whatever <INS> last asked for.
-	instance.reset();
+	retire();
 	coldScratch();
 	try {
 		load();

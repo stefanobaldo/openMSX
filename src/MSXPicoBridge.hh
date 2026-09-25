@@ -81,6 +81,8 @@ private:
 	void load();       // starts a life from `scratch`; throws MSXException
 	void coldScratch(); // the registers a cold start begins with
 	void pollEvents(); // drains the log queue, then handles one ABI event
+	void printLogs();  // prints and drains the instance's log queue
+	void retire();     // shuts the instance down, prints its last logs, destroys it
 
 	std::string libraryPath;   // firmware 1, without the FM synthesiser
 	std::string library2Path;  // firmware 2, with it; empty when not configured
